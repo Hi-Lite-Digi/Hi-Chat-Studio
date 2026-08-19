@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
+    "build:vercel": "vite build --config vite.vercel.config.ts",
     "start": "vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern dist-vercel --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
