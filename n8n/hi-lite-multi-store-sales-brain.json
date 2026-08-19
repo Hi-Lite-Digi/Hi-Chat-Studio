@@ -1,0 +1,108 @@
+{
+  "name": "Hi-Lite - Multi-store Sales Brain",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hi-lite-sales-brain",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "0d38b80d-cad2-462a-8717-49af9759c901",
+      "name": "Sales Chat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'Business profile and relevant catalogue candidates:\\n' + JSON.stringify($json.body.business) + '\\n\\nFull catalogue overview:\\n' + JSON.stringify($json.body.catalogueOverview) + '\\n\\nRecent conversation:\\n' + JSON.stringify($json.body.history || []) + '\\n\\nCustomer message:\\n' + $json.body.customerMessage }}",
+        "options": {
+          "systemMessage": "={{ $json.body.instructions + '\\n\\nYou are the business sales representative in this conversation. Use we, our, and I naturally. Treat only the supplied store profile, catalogue candidates, overview, and recent conversation as factual. Preserve the customer’s buying intent across turns. If they already named an item, do not ask what they are shopping for again. A zero or missing product price means quote pricing, never free and never within a stated budget. Correct an obvious brand or model typo only when the catalogue supports it. Requested brand, model, colour, and size are strict requirements. Never silently treat a range or model name as the brand; explain a manufacturer/range relationship and confirm the intended brand when it is ambiguous. When the customer rejects a brand, keep the requested item and colour in context, ask which brand they want, and show no products until they answer. When the customer accepts alternatives after an unavailable item, retain the requested product type, colour, size, and use while dropping the unavailable brand or model; never return unrelated catalogue items. If the relevant candidates do not satisfy every requested detail, say that the exact item is unavailable instead of substituting a loose match. The product rows below the reply already show item names and prices, so never repeat a long catalogue list in the message. Keep the reply concise and natural for WhatsApp. Return only the customer-facing reply as plain text, with no JSON, headings, markdown, or internal explanation.' }}"
+        }
+      },
+      "id": "63e78b0e-90ce-43b4-b4f4-e782076c8e60",
+      "name": "Store Sales Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "modelName": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "options": {
+          "temperature": 1,
+          "maxTokens": 2000
+        }
+      },
+      "id": "397f5bd4-4e85-4d54-b420-f74cb4fa97a5",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [260, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { reply: $json.output, limited: false } }}",
+        "options": {}
+      },
+      "id": "55c088b9-0dd7-4405-a2b5-b535cd413183",
+      "name": "Return Sales Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [540, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Sales Chat Webhook": {
+      "main": [
+        [
+          {
+            "node": "Store Sales Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Store Sales Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Sales Agent": {
+      "main": [
+        [
+          {
+            "node": "Return Sales Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "cb4426e6-0128-4bb5-9453-789a552df2e5",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
