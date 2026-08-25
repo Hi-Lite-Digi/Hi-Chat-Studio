@@ -2,6 +2,10 @@
 
 Paste any public online-store link and create a tailored WhatsApp-style sales demo. The app reads the store's public page and JSON-LD product data, prepares a catalogue, and opens an interactive customer chat. If a site blocks automated reading, the demo still starts with a clearly labelled sample catalogue that you can replace by pasting products.
 
+## Live demo
+
+Try the deployed app at **[hi-chat-studio.vercel.app](https://hi-chat-studio.vercel.app/)**.
+
 ## Run locally
 
 Requirements: Node.js 22.13 or newer.

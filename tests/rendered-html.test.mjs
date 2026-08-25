@@ -468,6 +468,81 @@ test("keeps gaming laptop context when the customer adds a budget", async () => 
   assert.doesNotMatch(data.reply, /marker|pen|stationery/i);
 });
 
+test("recommends chairs for a natural comfort request within the customer's budget", async () => {
+  const worker = await loadWorker("chair-comfort-budget");
+  const response = await worker.fetch(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: "Hi im looking for a chair and my budget is around 600. I have lower back pains, are you able to recommend anything based on my budget?",
+        sessionId: "test-chair-comfort-budget",
+        guardrail: "flexible",
+        history: [],
+        profile: {
+          name: "HINOMI SG",
+          summary: "Ergonomic office furniture",
+          domain: "hinomi.co",
+          policies: [],
+          products: [
+            { id: "1", name: "H1 Pro Ergonomic Chair", price: 549, currency: "SGD", description: "Adjustable ergonomic office chair with lumbar support for comfortable sitting.", category: "Office Chairs", attributes: ["Features: Adjustable lumbar support"] },
+            { id: "2", name: "Basic Dining Chair", price: 199, currency: "SGD", description: "A simple dining chair.", category: "Dining Chairs" },
+            { id: "3", name: "Executive Ergonomic Chair", price: 699, currency: "SGD", description: "Premium ergonomic chair with adjustable lumbar support.", category: "Office Chairs" },
+          ],
+        },
+      }),
+    }),
+    env,
+    context,
+  );
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.notEqual(data.provider, "catalogue-guard");
+  assert.doesNotMatch(data.reply, /don(?:'|’)t have an exact match/i);
+  assert.equal(data.products[0]?.name, "H1 Pro Ergonomic Chair");
+  assert.ok(data.products.every((product) => product.price <= 600));
+  assert.ok(data.products.every((product) => /chair/i.test(`${product.name} ${product.category}`)));
+});
+
+test("remembers the chair and comfort need when a follow-up lowers the budget", async () => {
+  const worker = await loadWorker("chair-budget-follow-up");
+  const response = await worker.fetch(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: "anything under 500?",
+        sessionId: "test-chair-budget-follow-up",
+        guardrail: "flexible",
+        history: [
+          { role: "customer", text: "Hi im looking for a chair and my budget is around 600. I have lower back pains, are you able to recommend anything based on my budget?" },
+          { role: "bot", text: "I can recommend a few ergonomic chairs within your budget." },
+        ],
+        profile: {
+          name: "HINOMI SG",
+          summary: "Ergonomic office furniture",
+          domain: "hinomi.co",
+          policies: [],
+          products: [
+            { id: "1", name: "H1 Classic Ergonomic Chair", price: 479, currency: "SGD", description: "Ergonomic office chair with adjustable lumbar support.", category: "Office Chairs", attributes: ["Features: Adjustable lumbar support"] },
+            { id: "2", name: "Basic Dining Chair", price: 199, currency: "SGD", description: "A simple dining chair.", category: "Dining Chairs" },
+            { id: "3", name: "H1 Pro Ergonomic Chair", price: 549, currency: "SGD", description: "Premium ergonomic chair with lumbar support.", category: "Office Chairs" },
+          ],
+        },
+      }),
+    }),
+    env,
+    context,
+  );
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.notEqual(data.provider, "catalogue-guard");
+  assert.doesNotMatch(data.reply, /don(?:'|’)t have an exact match/i);
+  assert.equal(data.products[0]?.name, "H1 Classic Ergonomic Chair");
+  assert.ok(data.products.every((product) => product.price <= 500));
+  assert.ok(data.products.every((product) => /chair/i.test(`${product.name} ${product.category}`)));
+});
+
 test("returns laptops without laptop accessories for a laptop request", async () => {
   const worker = await loadWorker("laptop-product-filter");
   const response = await worker.fetch(
