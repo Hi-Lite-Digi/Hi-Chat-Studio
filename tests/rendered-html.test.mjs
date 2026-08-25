@@ -388,7 +388,7 @@ test("keeps the requested product in a natural compound pricing question", async
   assert.match(data.reply, /\$1,899\.00/);
 });
 
-test("matches Nike colour lists and returns more than three relevant store items", async () => {
+test("matches Nike colour lists and returns exactly the three displayed options", async () => {
   const worker = await loadWorker("nike-products");
   const products = Array.from({ length: 8 }, (_, index) => ({
     id: `nike-${index}`,
@@ -404,7 +404,7 @@ test("matches Nike colour lists and returns more than three relevant store items
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        message: "Show me black Air Force 1 men's shoes under $200",
+        message: "I want black Air Force 1 men's shoes under $200",
         sessionId: "test-nike-products",
         guardrail: "flexible",
         history: [],
@@ -422,8 +422,9 @@ test("matches Nike colour lists and returns more than three relevant store items
   );
   assert.equal(response.status, 200);
   const data = await response.json();
-  assert.equal(data.products.length, 6);
+  assert.equal(data.products.length, 3);
   assert.ok(data.products.every((product) => /Air Force 1/i.test(product.name)));
+  assert.match(data.reply, /3 matching options/i);
 });
 
 test("keeps gaming laptop context when the customer adds a budget", async () => {

@@ -460,6 +460,7 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
   }
   const searchMessage = searchMessageWithMemory(message, history);
   const matches = relevantProducts(searchMessage, profile.products || []);
+  const presentedMatches = matches.slice(0, MAX_PRESENTED_PRODUCTS);
   const budget = budgetFrom(message);
   if (Number.isFinite(budget) && !matches.length) {
     return {
@@ -471,7 +472,7 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
   if (/recommend|popular|best.?seller|where should i start|not sure/.test(lower) && !/under|below|budget|for my|need|looking/.test(lower)) {
     return {
       reply: "I found a few good places to start and listed each item with its price below. Is this for you or a gift, and what budget should I stay within?",
-      products: matches,
+      products: presentedMatches,
       limited: false,
     };
   }
@@ -485,7 +486,7 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
   if (/cheaper|less expensive|lower price|save money|too expensive/.test(lower) && matches.length) {
     const published = matches.filter((product) => product.price > 0).sort((a, b) => a.price - b.price);
     if (!published.length) {
-      return { reply: "These options are priced by quote, so I can’t accurately call one cheaper yet. Tell me your budget and preferred material or finish, and I’ll help request the closest-priced option.", products: matches, limited: false };
+      return { reply: "These options are priced by quote, so I can’t accurately call one cheaper yet. Tell me your budget and preferred material or finish, and I’ll help request the closest-priced option.", products: presentedMatches, limited: false };
     }
     const cheapest = published[0];
     return { reply: `Yes—${cheapest.name} is the lowest published-price match at ${money(cheapest)}. ${productDescription(cheapest)} Would that price point work better?`, products: [cheapest], limited: false };
@@ -512,13 +513,13 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
       const requirement = rememberedRequirementLabel(message, history);
       return {
         reply: `Here are the closest ${requirement} alternatives available. I’ve listed each item and price below, with the closest match first. Would you like me to compare them?`,
-        products: matches,
+        products: presentedMatches,
         limited: false,
       };
     }
     return {
-      reply: `Yes—we have ${matches.length} matching options. I’ve listed each item and price below, with the closest match first. Would you like me to compare them?`,
-      products: matches,
+      reply: `Yes—we have ${presentedMatches.length} matching options. I’ve listed each item and price below, with the closest match first. Would you like me to compare them?`,
+      products: presentedMatches,
       limited: false,
     };
   }
