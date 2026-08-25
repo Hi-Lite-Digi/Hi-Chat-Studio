@@ -22,6 +22,7 @@ type Profile = {
 
 const TEAM_HANDOFF_REPLY =
   "I can help with products, recommendations, delivery and store questions. For this request, I’ll need to connect you with our team—would you like me to help you choose a product in the meantime?";
+const MAX_PRESENTED_PRODUCTS = 3;
 
 function money(product: Product) {
   if (!product.price || product.price <= 0) return "priced by quote";
@@ -156,7 +157,7 @@ function supportsRequestedProductTypes(product: Product, types: string[]) {
       .map(singularProductType),
   );
   const isAccessory = /\b(?:refill|replacement|ink cartridge|lead refill)\b/.test(primaryText);
-  const isReplacementAccessory = /\b(?:replacement|casters?|wheels?)\b/.test(primaryText);
+  const isReplacementAccessory = /\b(?:replacement|casters?|wheels?|chair floor mats?|gas lifts?|cylinders?)\b/.test(primaryText);
   const requestedDevice = types.some((type) => DEVICE_PRODUCT_TYPES.has(type));
   const requestedAccessory = types.some((type) => ACCESSORY_PRODUCT_TYPES.has(type));
   const productAccessory = [...primaryTypes].some((type) => ACCESSORY_PRODUCT_TYPES.has(type));
@@ -327,8 +328,9 @@ function relevantProducts(message: string, products: Product[], limit = 6) {
       const exactPhraseScore = normalisedName.length >= 4 && normalisedMessage.includes(normalisedName) ? 14 : 0;
       const colourScore = colours.length ? 12 : 0;
       const unrequestedComplexity = !/(?:multi|mechanical|\b[2-9][ -]?colou?r)/.test(normalisedMessage) && /(?:multi|mechanical|\b[2-9][ -]?colou?r)/.test(normalisedName) ? 8 : 0;
+      const unrequestedChildAudience = !/\b(?:child|children|kids?)\b/.test(normalisedMessage) && /\b(?:child|children|kids?)\b/.test(normalise(`${product.name} ${product.category}`)) ? 12 : 0;
       const needScore = needTerms.reduce((sum, term) => sum + (includesTerm(attributes, term) ? 4 : includesTerm(name, term) ? 3 : includesTerm(description, term) ? 3 : includesTerm(category, term) ? 2 : 0), 0);
-      const semanticScore = exactPhraseScore + colourScore + needScore + terms.reduce((sum, term) => sum + (includesTerm(name, term) ? 4 : includesTerm(attributes, term) ? 3 : includesTerm(category, term) ? 2 : includesTerm(description, term) ? 1 : 0), 0) - unrequestedComplexity;
+      const semanticScore = exactPhraseScore + colourScore + needScore + terms.reduce((sum, term) => sum + (includesTerm(name, term) ? 4 : includesTerm(attributes, term) ? 3 : includesTerm(category, term) ? 2 : includesTerm(description, term) ? 1 : 0), 0) - unrequestedComplexity - unrequestedChildAudience;
       const score = semanticScore + (Number.isFinite(budget) ? 0.25 : 0);
       return { product, score, semanticScore };
     })
@@ -372,6 +374,27 @@ function unavailableCatalogueReply(message: string, products: Product[]) {
 
 function replySupportsProductCards(reply: string) {
   return !/couldn(?:'|’)t find|can(?:not|'t|’t) confirm|not listed|(?:isn|aren|wasn)(?:'|’)t listed|don(?:'|’)t have|no exact|unavailable|ask (?:our|the) store team|check available/i.test(reply);
+}
+
+function productsAlignedWithReply(reply: string, candidates: Product[]) {
+  const optionSegments = [...reply.matchAll(/\bOption\s*\d+\s*:\s*(.*?)(?=\bOption\s*\d+\s*:|\bWhich\b|\bWould\b|$)/gi)]
+    .map((match) => normalise(match[1]));
+  if (!optionSegments.length) return candidates.slice(0, MAX_PRESENTED_PRODUCTS);
+  const ignoredNameTerms = new Set(["chair", "chairs", "desk", "desks", "ergonomic", "office", "table", "tables"]);
+  const selected: Product[] = [];
+  for (const segment of optionSegments.slice(0, MAX_PRESENTED_PRODUCTS)) {
+    const segmentTerms = new Set(segment.split(" "));
+    const best = candidates
+      .filter((candidate) => !selected.some((product) => product.id === candidate.id))
+      .map((candidate) => {
+        const terms = normalise(candidate.name).split(" ").filter((term) => term.length > 1 && !ignoredNameTerms.has(term));
+        const score = terms.reduce((sum, term) => sum + (segmentTerms.has(term) ? (/\d/.test(term) ? 12 : 2) : 0), 0);
+        return { candidate, score };
+      })
+      .sort((left, right) => right.score - left.score)[0];
+    if (best?.score) selected.push(best.candidate);
+  }
+  return selected.length ? selected : candidates.slice(0, MAX_PRESENTED_PRODUCTS);
 }
 
 function catalogueOverview(products: Product[]) {
@@ -573,7 +596,7 @@ export async function POST(request: Request) {
         },
         catalogueOverview: catalogueOverview(payload.profile.products || []),
         history: recentHistory,
-        instructions: "Act as the store's warm, proactive online sales assistant and speak directly in the store's voice. Write like a real WhatsApp salesperson: warm, direct, conversational, and concise. Keep every reply to 32 words or fewer and usually 1 or 2 short sentences. Answer the question first. Avoid repeating canned openers such as 'Got it' on consecutive turns. Never use semicolon-heavy catalogue dumps or generic phrases such as 'based on what you told me' or 'I found matching options.' For a broad question such as 'what do you sell?', mention no more than four main categories, say there is more available, and ask one simple follow-up. When the customer gives only a budget without an item type or use case, acknowledge the budget and ask what kind of item they need; do not invent or advertise categories as budget-matched options. Never claim a category or product is available within a budget unless the supplied candidate rows prove it. Do not introduce yourself as a demo, bot, AI, or prototype. Only mention that this is a demo when an exact requested item cannot be confirmed from the loaded catalogue. Remember the customer's stated buying intent and the exact item, brand, colour, size, budget, use case, comfort needs, and other requirements from recent messages. A newly stated product type replaces a different earlier product type while keeping relevant constraints such as the latest budget. For comfort-related needs such as back pain, recommend relevant catalogue features such as lumbar support, adjustability, and ergonomics without diagnosing, promising treatment, or giving medical advice. Product options are numbered as Option 1, Option 2, and Option 3 in the conversation history. When the customer replies with a number or says 'Option 2', treat that as selecting the corresponding item and confirm the chosen product by name and price. After a selection, offer product details, comparison, or a store-team handoff; never claim that this demo can reserve stock, add to cart, or complete checkout. Never drop the requested item when the customer adds a budget or another constraint. Never ask what they are shopping for when they have already said it. Correct obvious spelling mistakes in a requested brand or model only when the catalogue candidates clearly support that correction. Treat requested brand, model, colour, and size as required—not optional similarity hints. Do not treat a product range or model as the brand: when the catalogue title shows a different manufacturer or brand, explain the relationship and confirm which brand the customer wants before recommending. If the customer says the brand is wrong, keep the remembered product type and colour, ask for the intended brand, and return no product options until they answer. If the customer accepts an offer to see alternatives after an unavailable item, retain the requested product type, colour, size, and use, but drop the unavailable brand or model; never return unrelated catalogue items. If the supplied candidate array is empty for a product request, say that the requested item and constraints cannot be confirmed from the loaded catalogue; do not offer specific products or categories that are absent from the candidate rows. If the supplied candidates do not contain every requested detail, clearly say the exact item is not available in the catalogue loaded for this demo instead of presenting a different product. Prefer an exact product-name and available-variant match over loosely related alternatives. Use the exact published catalogue price when it is greater than zero. If pricePrefix is 'From ', say the price starts from that amount rather than presenting it as a single fixed variant price. When the price is zero or missing, say the item is priced by quote and offer to help confirm the exact price—never invent a number. Product rows already show item names and prices, so do not repeat the list in the message. Mention material, colour, size, or finish only when it directly answers the question. Recommend only catalogue products, compare options, handle objections, and ask at most one useful follow-up. Never invent products, stock, policies, or order information. If the request needs account access, payment actions, or specialist judgment, offer a handoff to the store team.",
+        instructions: "Act as the store's warm, proactive online sales assistant and speak directly in the store's voice. Write like a real WhatsApp salesperson: warm, direct, conversational, and concise. Keep every reply to 32 words or fewer and usually 1 or 2 short sentences. Answer the question first. Avoid repeating canned openers such as 'Got it' on consecutive turns. Never use semicolon-heavy catalogue dumps or generic phrases such as 'based on what you told me' or 'I found matching options.' For a broad question such as 'what do you sell?', mention no more than four main categories, say there is more available, and ask one simple follow-up. When the customer gives only a budget without an item type or use case, acknowledge the budget and ask what kind of item they need; do not invent or advertise categories as budget-matched options. Never claim a category or product is available within a budget unless the supplied candidate rows prove it. Do not introduce yourself as a demo, bot, AI, or prototype. Only mention that this is a demo when an exact requested item cannot be confirmed from the loaded catalogue. Remember the customer's stated buying intent and the exact item, brand, colour, size, budget, use case, comfort needs, and other requirements from recent messages. A newly stated product type replaces a different earlier product type while keeping relevant constraints such as the latest budget. For comfort-related needs such as back pain, recommend relevant catalogue features such as lumbar support, adjustability, and ergonomics without diagnosing, promising treatment, or giving medical advice. Never name, number, compare, or recommend a product outside the supplied candidate array. Recommend at most three candidates. If you write Option 1, Option 2, and Option 3 in the reply, use the candidates' exact catalogue names and prices because those named products will become the displayed option cards. Product options are numbered as Option 1, Option 2, and Option 3 in the conversation history. When the customer replies with a number or says 'Option 2', treat that as selecting the corresponding item and confirm the chosen product by name and price. After a selection, offer product details, comparison, or a store-team handoff; never claim that this demo can reserve stock, add to cart, or complete checkout. Never drop the requested item when the customer adds a budget or another constraint. Never ask what they are shopping for when they have already said it. Correct obvious spelling mistakes in a requested brand or model only when the catalogue candidates clearly support that correction. Treat requested brand, model, colour, and size as required—not optional similarity hints. Do not treat a product range or model as the brand: when the catalogue title shows a different manufacturer or brand, explain the relationship and confirm which brand the customer wants before recommending. If the customer says the brand is wrong, keep the requested item and colour in context, ask which brand they want, and show no products until they answer. When the customer accepts alternatives after an unavailable item, retain the requested product type, colour, size, and use while dropping the unavailable brand or model; never return unrelated catalogue items. If the supplied candidate array is empty for a product request, say that the requested item and constraints cannot be confirmed from the loaded catalogue; do not offer specific products or categories that are absent from the candidate rows. If the supplied candidates do not contain every requested detail, clearly say the exact item is not available in the catalogue loaded for this demo instead of presenting a different product. Prefer an exact product-name and available-variant match over loosely related alternatives. Use the exact published catalogue price when it is greater than zero. If pricePrefix is 'From ', say the price starts from that amount rather than presenting it as a single fixed variant price. When the price is zero or missing, say the item is priced by quote and offer to help confirm the exact price—never invent a number. Product rows already show item names and prices, so do not repeat the list in the message. Mention material, colour, size, or finish only when it directly answers the question. Recommend only catalogue products, compare options, handle objections, and ask at most one useful follow-up. Never invent products, stock, policies, or order information. If the request needs account access, payment actions, or specialist judgment, offer a handoff to the store team.",
       });
       if (reply && isBroadBudgetRequest) {
         return Response.json({
@@ -583,7 +606,10 @@ export async function POST(request: Request) {
           provider: "n8n",
         });
       }
-      if (reply) return Response.json({ reply, products: replySupportsProductCards(reply) ? candidates.slice(0, 6) : [], limited: false, provider: "n8n" });
+      if (reply) {
+        const products = replySupportsProductCards(reply) ? productsAlignedWithReply(reply, candidates) : [];
+        return Response.json({ reply, products, limited: false, provider: "n8n" });
+      }
       if (process.env.N8N_REQUIRED !== "false") {
         return Response.json({ error: "The sales assistant is temporarily unavailable. Please try again in a moment." }, { status: 502 });
       }

@@ -579,10 +579,7 @@ test("switches from tables to chairs while retaining the latest budget", async (
   assert.equal(response.status, 200);
   const data = await response.json();
   assert.notEqual(data.provider, "catalogue-guard");
-  assert.deepEqual(data.products.map((product) => product.name), [
-    "Hinomi H1 Classic V3 Ergonomic Office Chair",
-    "Hinomi Zee V2 Ergonomic Chair for Kids",
-  ]);
+  assert.deepEqual(data.products.map((product) => product.name), ["Hinomi H1 Classic V3 Ergonomic Office Chair"]);
   assert.ok(data.products.every((product) => product.price < 500));
   assert.ok(data.products.every((product) => !/table|desk|caster|wheel/i.test(product.name)));
 });
@@ -680,8 +677,11 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     request.on("end", () => {
       receivedWorkflowKey = request.headers["x-hi-lite-workflow-key"];
       receivedBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      const reply = /chair under \$500/i.test(receivedBody.customerMessage)
+        ? "Yes—we have chairs under $500. Option 1: Hinomi Q1 — SGD 279. Option 2: Hinomi Q2 — SGD 359. Option 3: Hinomi Q2 Pro — SGD 459. Which would you like details on?"
+        : "Yes—we carry the Hiro Chair in teak with a natural finish. I can arrange the exact quote for you.";
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ reply: "Yes—we carry the Hiro Chair in teak with a natural finish. I can arrange the exact quote for you." }));
+      response.end(JSON.stringify({ reply }));
     });
   });
   await new Promise((resolve) => mockN8n.listen(0, "127.0.0.1", resolve));
@@ -793,6 +793,45 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     assert.match(broadBudgetData.reply, /what kind of item/i);
     assert.doesNotMatch(broadBudgetData.reply, /seating|tables|desks|computer accessories/i);
     assert.deepEqual(broadBudgetData.products, []);
+
+    const alignedOptionsResponse = await worker.fetch(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "Hi I want a chair under $500",
+          sessionId: "test-n8n-aligned-options",
+          guardrail: "flexible",
+          history: [],
+          profile: {
+            name: "HINOMI SG",
+            summary: "Ergonomic office furniture",
+            domain: "hinomi.co",
+            policies: [],
+            products: [
+              { id: "mat", name: "Chair Floor Mat", price: 29.9, currency: "SGD", description: "Floor protection mat", category: "Seating" },
+              { id: "lift", name: "Chair Gas Lift/Cylinder", price: 50, currency: "SGD", description: "Replacement chair part", category: "Seating" },
+              { id: "kid", name: "Hinomi Children's Verte Ergonomic Saddle Chair", price: 199, currency: "SGD", description: "Ergonomic chair for children", category: "Seating" },
+              { id: "q1", name: "Hinomi Q1 Ergonomic Office Chair", price: 279, currency: "SGD", description: "Ergonomic adult office chair", category: "Seating" },
+              { id: "q2", name: "Hinomi Q2 Ergonomic Office Chair", price: 359, currency: "SGD", description: "Ergonomic adult office chair", category: "Seating" },
+              { id: "q2-pro", name: "Hinomi Q2 Pro Ergonomic Office Chair", price: 459, currency: "SGD", description: "Premium ergonomic adult office chair", category: "Seating" },
+            ],
+          },
+        }),
+      }),
+      env,
+      context,
+    );
+    assert.equal(alignedOptionsResponse.status, 200);
+    const alignedOptionsData = await alignedOptionsResponse.json();
+    assert.equal(alignedOptionsData.provider, "n8n");
+    assert.equal(alignedOptionsData.reply, "Yes—we have chairs under $500. Option 1: Hinomi Q1 — SGD 279. Option 2: Hinomi Q2 — SGD 359. Option 3: Hinomi Q2 Pro — SGD 459. Which would you like details on?");
+    assert.deepEqual(alignedOptionsData.products.map((product) => product.name), [
+      "Hinomi Q1 Ergonomic Office Chair",
+      "Hinomi Q2 Ergonomic Office Chair",
+      "Hinomi Q2 Pro Ergonomic Office Chair",
+    ]);
+    assert.ok(alignedOptionsData.products.every((product) => !/floor mat|gas lift|cylinder|children/i.test(product.name)));
   } finally {
     delete process.env.N8N_WEBHOOK_URL;
     delete process.env.N8N_WORKFLOW_KEY;
