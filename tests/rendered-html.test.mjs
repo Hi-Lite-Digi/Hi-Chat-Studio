@@ -761,6 +761,38 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     assert.equal(receivedBody.business.catalogueMatch.budget, 1000);
     assert.deepEqual(receivedBody.business.catalogueMatch.requestedProductTypes, ["laptop"]);
     assert.deepEqual(receivedBody.business.products, []);
+
+    const broadBudgetResponse = await worker.fetch(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "Can you recommend me anything that is less than 500?",
+          sessionId: "test-n8n-broad-budget",
+          guardrail: "flexible",
+          history: [],
+          profile: {
+            name: "HINOMI SG",
+            summary: "Ergonomic office furniture",
+            domain: "hinomi.co",
+            policies: [],
+            products: [
+              { id: "1", name: "H1 Classic Ergonomic Chair", price: 399, currency: "SGD", description: "Office chair", category: "Seating" },
+              { id: "2", name: "Children's Study Desk", price: 539, currency: "SGD", description: "Study desk", category: "Tables & desks" },
+            ],
+          },
+        }),
+      }),
+      env,
+      context,
+    );
+    assert.equal(broadBudgetResponse.status, 200);
+    const broadBudgetData = await broadBudgetResponse.json();
+    assert.equal(broadBudgetData.provider, "n8n");
+    assert.match(broadBudgetData.reply, /under (?:(?:SGD\s*)?\$?500)/i);
+    assert.match(broadBudgetData.reply, /what kind of item/i);
+    assert.doesNotMatch(broadBudgetData.reply, /seating|tables|desks|computer accessories/i);
+    assert.deepEqual(broadBudgetData.products, []);
   } finally {
     delete process.env.N8N_WEBHOOK_URL;
     delete process.env.N8N_WORKFLOW_KEY;
