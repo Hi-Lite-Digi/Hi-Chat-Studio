@@ -40,7 +40,7 @@ type Message = {
 
 const SAMPLE_URL = "https://demo.hi-lite.store";
 const MAX_CHAT_OPTIONS = 3;
-const FALLBACK_MESSAGE = "I can help with products, recommendations, delivery and store questions. For this request, I’ll need to connect you with our team—would you like me to help you choose a product in the meantime?";
+const FALLBACK_MESSAGE = "I can help with products, recommendations, delivery and store questions. For this request, I’ll need to connect you with our team. Would you like me to help you choose a product in the meantime?";
 
 function messageTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

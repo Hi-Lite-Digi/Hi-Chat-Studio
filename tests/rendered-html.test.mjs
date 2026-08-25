@@ -832,7 +832,8 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     assert.equal(alignedOptionsResponse.status, 200);
     const alignedOptionsData = await alignedOptionsResponse.json();
     assert.equal(alignedOptionsData.provider, "n8n");
-    assert.equal(alignedOptionsData.reply, "Yes—we have chairs under $500. Option 1: Hinomi Q1 — SGD 279. Option 2: Hinomi Q2 — SGD 359. Option 3: Hinomi Q2 Pro — SGD 459. Which would you like details on?");
+    assert.equal(alignedOptionsData.reply, "Yes, we have chairs under $500. Option 1: Hinomi Q1, SGD 279. Option 2: Hinomi Q2, SGD 359. Option 3: Hinomi Q2 Pro, SGD 459. Which would you like details on?");
+    assert.doesNotMatch(alignedOptionsData.reply, /[—–]/u);
     assert.deepEqual(alignedOptionsData.products.map((product) => product.name), [
       "Hinomi Q1 Ergonomic Office Chair",
       "Hinomi Q2 Ergonomic Office Chair",
