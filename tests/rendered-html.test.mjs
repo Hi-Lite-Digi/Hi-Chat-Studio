@@ -543,6 +543,50 @@ test("remembers the chair and comfort need when a follow-up lowers the budget", 
   assert.ok(data.products.every((product) => /chair/i.test(`${product.name} ${product.category}`)));
 });
 
+test("switches from tables to chairs while retaining the latest budget", async () => {
+  const worker = await loadWorker("table-to-chair-context-switch");
+  const response = await worker.fetch(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: "what about a chair?",
+        sessionId: "test-table-to-chair-context-switch",
+        guardrail: "flexible",
+        history: [
+          { role: "customer", text: "can you recommend me anything that is less than 500?" },
+          { role: "bot", text: "What kind of item are you looking for within that budget?" },
+          { role: "customer", text: "I would like table" },
+          { role: "bot", text: "I can’t confirm a table under SGD 500 from the loaded catalogue." },
+        ],
+        profile: {
+          name: "HINOMI SG",
+          summary: "Ergonomic office furniture",
+          domain: "hinomi.co",
+          policies: [],
+          products: [
+            { id: "1", name: "Hinomi H1 Classic V3 Ergonomic Office Chair", price: 399, currency: "SGD", description: "Ergonomic office chair with lumbar support.", category: "Seating" },
+            { id: "2", name: "Hinomi Zee V2 Ergonomic Chair for Kids", price: 429, currency: "SGD", description: "Adjustable ergonomic chair for children.", category: "Seating" },
+            { id: "3", name: "Hinomi Children's Ergonomic Lift Study Desk", price: 539, currency: "SGD", description: "Adjustable study desk.", category: "Tables & desks" },
+            { id: "4", name: "Silent Chair Casters | Replacement Wheels", price: 39, currency: "SGD", description: "Replacement caster wheels for office chairs.", category: "Seating" },
+          ],
+        },
+      }),
+    }),
+    env,
+    context,
+  );
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.notEqual(data.provider, "catalogue-guard");
+  assert.deepEqual(data.products.map((product) => product.name), [
+    "Hinomi H1 Classic V3 Ergonomic Office Chair",
+    "Hinomi Zee V2 Ergonomic Chair for Kids",
+  ]);
+  assert.ok(data.products.every((product) => product.price < 500));
+  assert.ok(data.products.every((product) => !/table|desk|caster|wheel/i.test(product.name)));
+});
+
 test("returns laptops without laptop accessories for a laptop request", async () => {
   const worker = await loadWorker("laptop-product-filter");
   const response = await worker.fetch(
@@ -680,9 +724,43 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     assert.equal(receivedWorkflowKey, "test-workflow-key");
     assert.equal(receivedBody.business.name, "Rooma SG");
     assert.equal(receivedBody.business.products[0].name, "Hiro Chair");
+    assert.equal(receivedBody.business.catalogueMatch.exactCatalogueMatch, true);
     assert.equal(receivedBody.catalogueOverview.totalProducts, 2);
     assert.match(receivedBody.instructions, /32 words or fewer/);
     assert.match(receivedBody.instructions, /real WhatsApp salesperson/);
+    assert.match(receivedBody.instructions, /gives only a budget/i);
+
+    const missingResponse = await worker.fetch(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "Do you have a gaming laptop under $1,000?",
+          sessionId: "test-n8n-missing-item",
+          guardrail: "flexible",
+          history: [],
+          profile: {
+            name: "Rooma SG",
+            summary: "Furniture store",
+            domain: "rooma.com.sg",
+            policies: [],
+            products: [
+              { id: "1", name: "Hiro Chair", price: 0, currency: "SGD", description: "Solid teak dining chair", category: "Seating" },
+              { id: "2", name: "Dining Table", price: 899, currency: "SGD", description: "Oak dining table", category: "Tables & desks" },
+            ],
+          },
+        }),
+      }),
+      env,
+      context,
+    );
+    assert.equal(missingResponse.status, 200);
+    const missingData = await missingResponse.json();
+    assert.equal(missingData.provider, "n8n");
+    assert.equal(receivedBody.business.catalogueMatch.exactCatalogueMatch, false);
+    assert.equal(receivedBody.business.catalogueMatch.budget, 1000);
+    assert.deepEqual(receivedBody.business.catalogueMatch.requestedProductTypes, ["laptop"]);
+    assert.deepEqual(receivedBody.business.products, []);
   } finally {
     delete process.env.N8N_WEBHOOK_URL;
     delete process.env.N8N_WORKFLOW_KEY;

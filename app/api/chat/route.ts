@@ -148,10 +148,12 @@ function supportsRequestedProductTypes(product: Product, types: string[]) {
       .map(singularProductType),
   );
   const isAccessory = /\b(?:refill|replacement|ink cartridge|lead refill)\b/.test(primaryText);
+  const isReplacementAccessory = /\b(?:replacement|casters?|wheels?)\b/.test(primaryText);
   const requestedDevice = types.some((type) => DEVICE_PRODUCT_TYPES.has(type));
   const requestedAccessory = types.some((type) => ACCESSORY_PRODUCT_TYPES.has(type));
   const productAccessory = [...primaryTypes].some((type) => ACCESSORY_PRODUCT_TYPES.has(type));
   if (requestedDevice && productAccessory && !requestedAccessory) return false;
+  if (isReplacementAccessory && types.some((type) => !ACCESSORY_PRODUCT_TYPES.has(type))) return false;
   return types.every((type) =>
     primaryTypes.has(type) || (!primaryTypes.size && !isAccessory && descriptionTypes.has(type)),
   );
@@ -194,12 +196,26 @@ function searchMessageWithMemory(message: string, history: { role: string; text:
     const requirements = earlierRequest ? rememberedProductRequirements(earlierRequest) : [];
     return [message, ...requirements].join(" ");
   }
-  const isBudgetFollowUp = Number.isFinite(budgetFrom(message)) && requestedProductTypes(message).length === 0;
-  const isFollowUp = isBudgetFollowUp || /^(?:yes|no|how much|what(?:'s| is) the price|what about|and the|is it|does it|can i|i want it|i(?:'ll| will) take it|that one|this one)\b/i.test(message.trim()) || /\b(?:it|that|this|one)\b/.test(compact);
-  if (!isFollowUp) return message;
+  const currentTypes = requestedProductTypes(message);
   const latestProductRequest = [...history]
     .reverse()
     .find((entry) => entry.role === "customer" && normalise(entry.text) !== compact && requestedProductTypes(entry.text).length)?.text;
+  const latestTypes = latestProductRequest ? requestedProductTypes(latestProductRequest) : [];
+  const rememberedBudget = budgetFrom(
+    history
+      .filter((entry) => entry.role === "customer" && normalise(entry.text) !== compact)
+      .map((entry) => entry.text)
+      .join(" "),
+  );
+  if (currentTypes.length && !Number.isFinite(budgetFrom(message)) && Number.isFinite(rememberedBudget)) {
+    return `${message} under ${rememberedBudget}`;
+  }
+  if (currentTypes.length && latestTypes.length && currentTypes.some((type) => !latestTypes.includes(type))) {
+    return message;
+  }
+  const isBudgetFollowUp = Number.isFinite(budgetFrom(message)) && requestedProductTypes(message).length === 0;
+  const isFollowUp = isBudgetFollowUp || /^(?:yes|no|how much|what(?:'s| is) the price|what about|and the|is it|does it|can i|i want it|i(?:'ll| will) take it|that one|this one)\b/i.test(message.trim()) || /\b(?:it|that|this|one)\b/.test(compact);
+  if (!isFollowUp) return message;
   if (isBudgetFollowUp && latestProductRequest) return `${latestProductRequest} ${message}`;
   const priorNeeds = history
     .filter((entry) => entry.role === "customer" && entry.text.trim() && normalise(entry.text) !== compact)
@@ -279,7 +295,7 @@ function relevantProducts(message: string, products: Product[], limit = 6) {
   const lower = message.toLowerCase();
   const budget = budgetFrom(message);
   const normalisedMessage = normalise(message);
-  const ignored = new Set(["what", "which", "with", "that", "this", "have", "your", "you", "about", "need", "want", "show", "recommend", "anything", "something", "looking", "please", "under", "below", "for", "from", "the", "there", "does", "can", "could", "would", "carry", "sell", "stock", "available", "buy", "get", "order", "shop", "search", "find", "item", "product", "regular", "normal", "standard", "basic", "guys", "how", "much", "price", "cost", "yes", "yeah", "yep", "sure", "okay", "else", "other", "alternative", "alternatives", "option", "options", "and", "but", "then", "able", "are", "around", "based", "budget", "pain", "pains", "lower", "back", "within"]);
+  const ignored = new Set(["what", "which", "with", "that", "this", "have", "your", "you", "about", "need", "want", "show", "recommend", "anything", "something", "looking", "please", "under", "below", "for", "from", "the", "there", "does", "can", "could", "would", "carry", "sell", "stock", "available", "buy", "get", "order", "shop", "search", "find", "item", "product", "regular", "normal", "standard", "basic", "guys", "how", "much", "price", "cost", "yes", "yeah", "yep", "sure", "okay", "else", "other", "alternative", "alternatives", "option", "options", "and", "but", "then", "able", "are", "around", "based", "budget", "less", "than", "like", "pain", "pains", "lower", "back", "within"]);
   const terms = lower.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !/^\d/.test(term) && !ignored.has(term));
   const needTerms = [
     ...(/\b(?:lower back|back pain|back pains|posture)\b/i.test(message) ? ["lumbar", "ergonomic", "support", "posture", "adjustable", "comfort"] : []),
@@ -318,7 +334,7 @@ function catalogueRequestLabel(message: string) {
   const words = normalise(message).split(" ");
   const descriptors = words.filter((word) => COLOUR_TERMS.has(word) || ["business", "gaming", "portable", "student", "wireless"].includes(word));
   const types = requestedProductTypes(message);
-  const filler = new Set(["able", "any", "anything", "are", "around", "available", "back", "based", "below", "budget", "buy", "can", "could", "demo", "do", "does", "exact", "few", "find", "for", "have", "how", "i", "is", "item", "looking", "lower", "max", "maximum", "me", "much", "need", "of", "one", "options", "pain", "pains", "please", "price", "product", "recommend", "sell", "sgd", "show", "some", "the", "there", "this", "to", "under", "want", "what", "which", "with", "you", "your"]);
+  const filler = new Set(["able", "about", "any", "anything", "are", "around", "available", "back", "based", "below", "budget", "buy", "can", "could", "demo", "do", "does", "exact", "few", "find", "for", "have", "how", "i", "is", "item", "less", "like", "looking", "lower", "max", "maximum", "me", "much", "need", "of", "one", "options", "pain", "pains", "please", "price", "product", "recommend", "sell", "sgd", "show", "some", "than", "the", "there", "this", "to", "under", "want", "what", "which", "with", "would", "you", "your"]);
   const meaningful = words.filter((word) =>
     word.length > 2 &&
     !/^\d/.test(word) &&
@@ -527,29 +543,43 @@ export async function POST(request: Request) {
     const retrievalText = searchMessageWithMemory(message, recentHistory);
     const candidates = relevantProducts(retrievalText, payload.profile.products || [], 18);
     const isBrandCorrection = /not (?:the )?(?:right )?brand|wrong brand|different brand|another brand/i.test(message);
-    if (!isBrandCorrection && requestedProductTypes(retrievalText).length && !candidates.length) {
-      return Response.json({
-        reply: unavailableCatalogueReply(retrievalText, payload.profile.products || []),
-        products: [],
-        limited: false,
-        provider: "catalogue-guard",
-      });
-    }
+    const retrievalTypes = requestedProductTypes(retrievalText);
+    const retrievalBudget = budgetFrom(retrievalText);
+    const hasNoCatalogueMatch = !isBrandCorrection && retrievalTypes.length > 0 && candidates.length === 0;
+    const isBroadBudgetRequest = retrievalTypes.length === 0 && Number.isFinite(retrievalBudget);
 
     const configuredWebhook = typeof process !== "undefined" ? process.env.N8N_WEBHOOK_URL : undefined;
     if (configuredWebhook) {
       const reply = await n8nReply(configuredWebhook, process.env.N8N_WORKFLOW_KEY, {
         sessionId: payload.sessionId,
         customerMessage: message,
-        business: { ...payload.profile, products: candidates },
+        business: {
+          ...payload.profile,
+          products: candidates,
+          catalogueMatch: {
+            requestedProductTypes: retrievalTypes,
+            budget: Number.isFinite(retrievalBudget) ? retrievalBudget : null,
+            candidateCount: candidates.length,
+            exactCatalogueMatch: !hasNoCatalogueMatch,
+          },
+        },
         catalogueOverview: catalogueOverview(payload.profile.products || []),
         history: recentHistory,
-        instructions: "Act as the store's warm, proactive online sales assistant and speak directly in the store's voice. Write like a real WhatsApp salesperson: warm, direct, conversational, and concise. Keep every reply to 32 words or fewer and usually 1 or 2 short sentences. Answer the question first. Avoid repeating canned openers such as 'Got it' on consecutive turns. Never use semicolon-heavy catalogue dumps or generic phrases such as 'based on what you told me' or 'I found matching options.' For a broad question such as 'what do you sell?', mention no more than four main categories, say there is more available, and ask one simple follow-up. Do not introduce yourself as a demo, bot, AI, or prototype. Only mention that this is a demo when an exact requested item cannot be confirmed from the loaded catalogue. Remember the customer's stated buying intent and the exact item, brand, colour, size, budget, use case, comfort needs, and other requirements from recent messages. For comfort-related needs such as back pain, recommend relevant catalogue features such as lumbar support, adjustability, and ergonomics without diagnosing, promising treatment, or giving medical advice. Product options are numbered as Option 1, Option 2, and Option 3 in the conversation history. When the customer replies with a number or says 'Option 2', treat that as selecting the corresponding item and confirm the chosen product by name and price. After a selection, offer product details, comparison, or a store-team handoff; never claim that this demo can reserve stock, add to cart, or complete checkout. Never drop the requested item when the customer adds a budget or another constraint. Never ask what they are shopping for when they have already said it. Correct obvious spelling mistakes in a requested brand or model only when the catalogue candidates clearly support that correction. Treat requested brand, model, colour, and size as required—not optional similarity hints. Do not treat a product range or model as the brand: when the catalogue title shows a different manufacturer or brand, explain the relationship and confirm which brand the customer wants before recommending. If the customer says the brand is wrong, keep the remembered product type and colour, ask for the intended brand, and return no product options until they answer. If the customer accepts an offer to see alternatives after an unavailable item, retain the requested product type, colour, size, and use, but drop the unavailable brand or model; never return unrelated catalogue items. If the supplied candidates do not contain every requested detail, clearly say the exact item is not available in the catalogue loaded for this demo instead of presenting a different product. Prefer an exact product-name and available-variant match over loosely related alternatives. Use the exact published catalogue price when it is greater than zero. If pricePrefix is 'From ', say the price starts from that amount rather than presenting it as a single fixed variant price. When the price is zero or missing, say the item is priced by quote and offer to help confirm the exact price—never invent a number. Product rows already show item names and prices, so do not repeat the list in the message. Mention material, colour, size, or finish only when it directly answers the question. Recommend only catalogue products, compare options, handle objections, and ask at most one useful follow-up. Never invent products, stock, policies, or order information. If the request needs account access, payment actions, or specialist judgment, offer a handoff to the store team.",
+        instructions: "Act as the store's warm, proactive online sales assistant and speak directly in the store's voice. Write like a real WhatsApp salesperson: warm, direct, conversational, and concise. Keep every reply to 32 words or fewer and usually 1 or 2 short sentences. Answer the question first. Avoid repeating canned openers such as 'Got it' on consecutive turns. Never use semicolon-heavy catalogue dumps or generic phrases such as 'based on what you told me' or 'I found matching options.' For a broad question such as 'what do you sell?', mention no more than four main categories, say there is more available, and ask one simple follow-up. When the customer gives only a budget without an item type or use case, acknowledge the budget and ask what kind of item they need; do not invent or advertise categories as budget-matched options. Never claim a category or product is available within a budget unless the supplied candidate rows prove it. Do not introduce yourself as a demo, bot, AI, or prototype. Only mention that this is a demo when an exact requested item cannot be confirmed from the loaded catalogue. Remember the customer's stated buying intent and the exact item, brand, colour, size, budget, use case, comfort needs, and other requirements from recent messages. A newly stated product type replaces a different earlier product type while keeping relevant constraints such as the latest budget. For comfort-related needs such as back pain, recommend relevant catalogue features such as lumbar support, adjustability, and ergonomics without diagnosing, promising treatment, or giving medical advice. Product options are numbered as Option 1, Option 2, and Option 3 in the conversation history. When the customer replies with a number or says 'Option 2', treat that as selecting the corresponding item and confirm the chosen product by name and price. After a selection, offer product details, comparison, or a store-team handoff; never claim that this demo can reserve stock, add to cart, or complete checkout. Never drop the requested item when the customer adds a budget or another constraint. Never ask what they are shopping for when they have already said it. Correct obvious spelling mistakes in a requested brand or model only when the catalogue candidates clearly support that correction. Treat requested brand, model, colour, and size as required—not optional similarity hints. Do not treat a product range or model as the brand: when the catalogue title shows a different manufacturer or brand, explain the relationship and confirm which brand the customer wants before recommending. If the customer says the brand is wrong, keep the remembered product type and colour, ask for the intended brand, and return no product options until they answer. If the customer accepts an offer to see alternatives after an unavailable item, retain the requested product type, colour, size, and use, but drop the unavailable brand or model; never return unrelated catalogue items. If the supplied candidate array is empty for a product request, say that the requested item and constraints cannot be confirmed from the loaded catalogue; do not offer specific products or categories that are absent from the candidate rows. If the supplied candidates do not contain every requested detail, clearly say the exact item is not available in the catalogue loaded for this demo instead of presenting a different product. Prefer an exact product-name and available-variant match over loosely related alternatives. Use the exact published catalogue price when it is greater than zero. If pricePrefix is 'From ', say the price starts from that amount rather than presenting it as a single fixed variant price. When the price is zero or missing, say the item is priced by quote and offer to help confirm the exact price—never invent a number. Product rows already show item names and prices, so do not repeat the list in the message. Mention material, colour, size, or finish only when it directly answers the question. Recommend only catalogue products, compare options, handle objections, and ask at most one useful follow-up. Never invent products, stock, policies, or order information. If the request needs account access, payment actions, or specialist judgment, offer a handoff to the store team.",
       });
-      if (reply) return Response.json({ reply, products: replySupportsProductCards(reply) ? candidates.slice(0, 6) : [], limited: false, provider: "n8n" });
+      if (reply) return Response.json({ reply, products: !isBroadBudgetRequest && replySupportsProductCards(reply) ? candidates.slice(0, 6) : [], limited: false, provider: "n8n" });
       if (process.env.N8N_REQUIRED !== "false") {
         return Response.json({ error: "The sales assistant is temporarily unavailable. Please try again in a moment." }, { status: 502 });
       }
+    }
+
+    if (hasNoCatalogueMatch) {
+      return Response.json({
+        reply: unavailableCatalogueReply(retrievalText, payload.profile.products || []),
+        products: [],
+        limited: false,
+        provider: "catalogue-guard",
+      });
     }
 
     return Response.json({ ...localReply(message, payload.profile, guardrail, payload.history), provider: "local" });
