@@ -2,9 +2,19 @@
 
 Paste any public online-store link and create a tailored WhatsApp-style sales demo. The app reads the store's public page and JSON-LD product data, prepares a catalogue, and opens an interactive customer chat. If a site blocks automated reading, the demo still starts with a clearly labelled sample catalogue that you can replace by pasting products.
 
-## Live demo
+## Live demo instances
 
-Try the deployed app at **[hi-chat-studio.vercel.app](https://hi-chat-studio.vercel.app/)**.
+The five demo instances use the same GitHub codebase, while each Vercel project points to its own n8n workflow.
+
+| Copy | Live site | n8n workflow |
+| --- | --- | --- |
+| 1 | [hi-chat-studio.vercel.app](https://hi-chat-studio.vercel.app/) | `Hi-Lite - Multi-store Sales Brain` |
+| 2 | [hi-chat-studio-2.vercel.app](https://hi-chat-studio-2.vercel.app/) | `Hi-Lite - Multi-store Sales Brain_2` |
+| 3 | [hi-chat-studio-14zn.vercel.app](https://hi-chat-studio-14zn.vercel.app/) | `Hi-Lite - Multi-store Sales Brain_3` |
+| 4 | [hi-chat-studio-4.vercel.app](https://hi-chat-studio-4.vercel.app/) | `Hi-Lite - Multi-store Sales Brain_4` |
+| 5 | [hi-chat-studio-5.vercel.app](https://hi-chat-studio-5.vercel.app/) | `Hi-Lite - Multi-store Sales Brain_5` |
+
+Supabase is not required for the current demo flow. Store catalogues and chat state are prepared for each demo session, and n8n provides the sales-assistant replies.
 
 ## Run locally
 
