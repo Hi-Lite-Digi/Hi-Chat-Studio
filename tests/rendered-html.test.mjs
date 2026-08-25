@@ -680,8 +680,12 @@ test("uses local n8n as the primary sales brain when configured", async () => {
       const reply = /chair under \$500/i.test(receivedBody.customerMessage)
         ? "Yes—we have chairs under $500. Option 1: Hinomi Q1 — SGD 279. Option 2: Hinomi Q2 — SGD 359. Option 3: Hinomi Q2 Pro — SGD 459. Which would you like details on?"
         : "Yes—we carry the Hiro Chair in teak with a natural finish. I can arrange the exact quote for you.";
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ reply }));
+      const sendReply = () => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ reply }));
+      };
+      if (receivedBody.sessionId === "test-n8n-timeout") setTimeout(sendReply, 80);
+      else sendReply();
     });
   });
   await new Promise((resolve) => mockN8n.listen(0, "127.0.0.1", resolve));
@@ -832,11 +836,53 @@ test("uses local n8n as the primary sales brain when configured", async () => {
       "Hinomi Q2 Pro Ergonomic Office Chair",
     ]);
     assert.ok(alignedOptionsData.products.every((product) => !/floor mat|gas lift|cylinder|children/i.test(product.name)));
+
+    process.env.N8N_TIMEOUT_MS = "20";
+    const timeoutStartedAt = Date.now();
+    const timeoutFallbackResponse = await worker.fetch(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "chairs",
+          sessionId: "test-n8n-timeout",
+          guardrail: "flexible",
+          history: [
+            { role: "customer", text: "Do you have anything under $500?" },
+            { role: "bot", text: "What kind of item are you looking for?" },
+          ],
+          profile: {
+            name: "HINOMI SG",
+            summary: "Ergonomic office furniture",
+            domain: "hinomi.co",
+            policies: [],
+            products: [
+              { id: "q1", name: "Hinomi Q1 Ergonomic Office Chair", price: 279, currency: "SGD", description: "Ergonomic adult office chair", category: "Seating" },
+              { id: "q2", name: "Hinomi Q2 Ergonomic Office Chair", price: 359, currency: "SGD", description: "Ergonomic adult office chair", category: "Seating" },
+            ],
+          },
+        }),
+      }),
+      env,
+      context,
+    );
+    const timeoutElapsedMs = Date.now() - timeoutStartedAt;
+    delete process.env.N8N_TIMEOUT_MS;
+    assert.equal(timeoutFallbackResponse.status, 200);
+    const timeoutFallbackData = await timeoutFallbackResponse.json();
+    assert.equal(timeoutFallbackData.provider, "local-fallback");
+    assert.ok(timeoutElapsedMs < 500, `Expected a fast fallback, received it in ${timeoutElapsedMs}ms`);
+    assert.doesNotMatch(timeoutFallbackData.reply, /team handoff|connect you with our team/i);
+    assert.deepEqual(timeoutFallbackData.products.map((product) => product.name), [
+      "Hinomi Q1 Ergonomic Office Chair",
+      "Hinomi Q2 Ergonomic Office Chair",
+    ]);
   } finally {
     delete process.env.N8N_WEBHOOK_URL;
     delete process.env.N8N_WORKFLOW_KEY;
     delete process.env.N8N_REQUIRED;
     delete process.env.N8N_ALLOW_LOCALHOST;
+    delete process.env.N8N_TIMEOUT_MS;
     await new Promise((resolve, reject) => mockN8n.close((error) => error ? reject(error) : resolve()));
   }
 });
