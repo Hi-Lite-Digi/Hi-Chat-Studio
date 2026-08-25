@@ -21,7 +21,7 @@ type Profile = {
 };
 
 const TEAM_HANDOFF_REPLY =
-  "I can help with products, recommendations, delivery and store questions. For this request, I’ll need to connect you with our team—would you like me to help you choose a product in the meantime?";
+  "No worries—I can help with products, recommendations, delivery and store questions. For this request, I’ll need to connect you with our team. Want me to help you choose a product in the meantime?";
 const MAX_PRESENTED_PRODUCTS = 3;
 
 function money(product: Product) {
@@ -437,7 +437,7 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
     if (!categories.length) categories.push("a wide range of store products");
     const representatives = categories.map((category) => profile.products.find((product) => product.category === category)).filter((product): product is Product => Boolean(product)).slice(0, 4);
     return {
-      reply: `We carry ${categories.join(", ")}${categories.length > 1 ? ", and more" : ""}. What are you looking for today?`,
+      reply: `Sure can 😊 We carry ${categories.join(", ")}${categories.length > 1 ? ", and more" : ""}. What are you looking for today?`,
       products: representatives,
       limited: false,
     };
@@ -446,17 +446,17 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
     return { reply: `Hi 👋 Welcome to ${profile.name}! What can I help you find today?`, products: [], limited: false };
   }
   if (/return|exchange|refund policy/.test(lower)) {
-    return { reply: "I can help with returns and exchanges. Share your order number and what you’d like to return, and our team can review the next step with you.", products: [], limited: false };
+    return { reply: "No worries—I can help with returns and exchanges. Share your order number and what you’d like to return, and our team can review the next step with you.", products: [], limited: false };
   }
   if (/ship|delivery|deliver|postage/.test(lower)) {
-    return { reply: "Yes, we can help with delivery. Share your postcode or destination and the item you’re interested in so I can guide you on the right next step.", products: [], limited: false };
+    return { reply: "Sure can 😊 Share your postcode or destination and the item you’re interested in, and I’ll check the delivery details for you.", products: [], limited: false };
   }
   if (/who are you|what can you do|help me/.test(lower)) {
-    return { reply: `I’m ${profile.name}’s online sales assistant. I can show you products, exact published prices and options, compare the range, and help arrange a quote when an item is custom-priced. What are you looking for?`, products: [], limited: false };
+    return { reply: `Hi! I’m ${profile.name}’s online sales assistant 😊 I can show products and prices, compare options, or help arrange a quote. What are you looking for?`, products: [], limited: false };
   }
   if (/not (?:the )?(?:right )?brand|wrong brand|different brand|another brand/.test(lower)) {
     const rememberedItem = rememberedRequirementLabel(message, history);
-    return { reply: `Got it—I won’t assume the brand. Which brand do you want for the ${rememberedItem}?`, products: [], limited: false };
+    return { reply: `No worries—I won’t guess the brand. Which brand would you like for the ${rememberedItem}?`, products: [], limited: false };
   }
   const searchMessage = searchMessageWithMemory(message, history);
   const matches = relevantProducts(searchMessage, profile.products || []);
@@ -471,14 +471,14 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
   }
   if (/recommend|popular|best.?seller|where should i start|not sure/.test(lower) && !/under|below|budget|for my|need|looking/.test(lower)) {
     return {
-      reply: "I found a few good places to start and listed each item with its price below. Is this for you or a gift, and what budget should I stay within?",
+      reply: "Sure can 😊 I’ve listed a few good places to start with their prices below. Is this for you or a gift, and what budget should I work with?",
       products: presentedMatches,
       limited: false,
     };
   }
   if (/compare|difference|versus|\bvs\b/.test(lower) && matches.length > 1) {
     return {
-      reply: `${matches[0].name} is ${money(matches[0])}. ${productDescription(matches[0])} ${matches[1].name} is ${money(matches[1])}. ${productDescription(matches[1])} Tell me which feature matters most and I’ll help you choose between them.`,
+      reply: `Here’s a quick comparison 😊 ${matches[0].name} is ${money(matches[0])}. ${productDescription(matches[0])} ${matches[1].name} is ${money(matches[1])}. ${productDescription(matches[1])} Which feature matters most to you?`,
       products: matches.slice(0, 2),
       limited: false,
     };
@@ -486,10 +486,10 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
   if (/cheaper|less expensive|lower price|save money|too expensive/.test(lower) && matches.length) {
     const published = matches.filter((product) => product.price > 0).sort((a, b) => a.price - b.price);
     if (!published.length) {
-      return { reply: "These options are priced by quote, so I can’t accurately call one cheaper yet. Tell me your budget and preferred material or finish, and I’ll help request the closest-priced option.", products: presentedMatches, limited: false };
+      return { reply: "No worries—these options are priced by quote, so I can’t call one cheaper yet. Share your budget and preferred material or finish, and I’ll help check the closest option.", products: presentedMatches, limited: false };
     }
     const cheapest = published[0];
-    return { reply: `Yes—${cheapest.name} is the lowest published-price match at ${money(cheapest)}. ${productDescription(cheapest)} Would that price point work better?`, products: [cheapest], limited: false };
+    return { reply: `Yes 😊 ${cheapest.name} is the lowest published-price match at ${money(cheapest)}. ${productDescription(cheapest)} Would that price work better for you?`, products: [cheapest], limited: false };
   }
   if (matches.length) {
     const clarification = rangeBrandClarification(searchMessage, matches, profile.name);
@@ -504,7 +504,7 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
     if (matches.length === 1) {
       const product = matches[0];
       return {
-        reply: `Yes, we carry ${product.name}. ${productOptions(product)} ${productDescription(product)} ${pricingSentence(product)} Would you like help with this item or another option?`.replace(/\s+/g, " ").trim(),
+        reply: `Yes, we carry ${product.name} 😊 ${productOptions(product)} ${productDescription(product)} ${pricingSentence(product)} Want details on this item or another option?`.replace(/\s+/g, " ").trim(),
         products: [product],
         limited: false,
       };
@@ -512,13 +512,13 @@ function localReply(message: string, profile: Profile, guardrail: string, histor
     if (isAlternativeAcceptance(message)) {
       const requirement = rememberedRequirementLabel(message, history);
       return {
-        reply: `Here are the closest ${requirement} alternatives available. I’ve listed each item and price below, with the closest match first. Would you like me to compare them?`,
+        reply: `Sure can 😊 Here are the closest ${requirement} alternatives, with the best match first. Want me to compare them for you?`,
         products: presentedMatches,
         limited: false,
       };
     }
     return {
-      reply: `Yes—we have ${presentedMatches.length} matching options. I’ve listed each item and price below, with the closest match first. Would you like me to compare them?`,
+      reply: `Yes, we have ${presentedMatches.length} matching options 😊 I’ve put the closest match first. Want me to compare them for you?`,
       products: presentedMatches,
       limited: false,
     };
@@ -601,14 +601,14 @@ export async function POST(request: Request) {
         },
         catalogueOverview: catalogueOverview(payload.profile.products || []),
         history: recentHistory,
-        instructions: "Act as the store's warm, proactive online sales assistant and speak directly in the store's voice. Write like a real WhatsApp salesperson: warm, direct, conversational, and concise. Keep every reply to 32 words or fewer and usually 1 or 2 short sentences. Answer the question first. Avoid repeating canned openers such as 'Got it' on consecutive turns. Never use semicolon-heavy catalogue dumps or generic phrases such as 'based on what you told me' or 'I found matching options.' For a broad question such as 'what do you sell?', mention no more than four main categories, say there is more available, and ask one simple follow-up. When the customer gives only a budget without an item type or use case, acknowledge the budget and ask what kind of item they need; do not invent or advertise categories as budget-matched options. Never claim a category or product is available within a budget unless the supplied candidate rows prove it. Do not introduce yourself as a demo, bot, AI, or prototype. Only mention that this is a demo when an exact requested item cannot be confirmed from the loaded catalogue. Remember the customer's stated buying intent and the exact item, brand, colour, size, budget, use case, comfort needs, and other requirements from recent messages. A newly stated product type replaces a different earlier product type while keeping relevant constraints such as the latest budget. For comfort-related needs such as back pain, recommend relevant catalogue features such as lumbar support, adjustability, and ergonomics without diagnosing, promising treatment, or giving medical advice. Never name, number, compare, or recommend a product outside the supplied candidate array. Recommend at most three candidates. If you write Option 1, Option 2, and Option 3 in the reply, use the candidates' exact catalogue names and prices because those named products will become the displayed option cards. Product options are numbered as Option 1, Option 2, and Option 3 in the conversation history. When the customer replies with a number or says 'Option 2', treat that as selecting the corresponding item and confirm the chosen product by name and price. After a selection, offer product details, comparison, or a store-team handoff; never claim that this demo can reserve stock, add to cart, or complete checkout. Never drop the requested item when the customer adds a budget or another constraint. Never ask what they are shopping for when they have already said it. Correct obvious spelling mistakes in a requested brand or model only when the catalogue candidates clearly support that correction. Treat requested brand, model, colour, and size as required—not optional similarity hints. Do not treat a product range or model as the brand: when the catalogue title shows a different manufacturer or brand, explain the relationship and confirm which brand the customer wants before recommending. If the customer says the brand is wrong, keep the requested item and colour in context, ask which brand they want, and show no products until they answer. When the customer accepts alternatives after an unavailable item, retain the requested product type, colour, size, and use while dropping the unavailable brand or model; never return unrelated catalogue items. If the supplied candidate array is empty for a product request, say that the requested item and constraints cannot be confirmed from the loaded catalogue; do not offer specific products or categories that are absent from the candidate rows. If the supplied candidates do not contain every requested detail, clearly say the exact item is not available in the catalogue loaded for this demo instead of presenting a different product. Prefer an exact product-name and available-variant match over loosely related alternatives. Use the exact published catalogue price when it is greater than zero. If pricePrefix is 'From ', say the price starts from that amount rather than presenting it as a single fixed variant price. When the price is zero or missing, say the item is priced by quote and offer to help confirm the exact price—never invent a number. Product rows already show item names and prices, so do not repeat the list in the message. Mention material, colour, size, or finish only when it directly answers the question. Recommend only catalogue products, compare options, handle objections, and ask at most one useful follow-up. Never invent products, stock, policies, or order information. If the request needs account access, payment actions, or specialist judgment, offer a handoff to the store team.",
+        instructions: "Act as the store's warm, proactive online sales assistant and speak directly in the store's voice. Write like a real WhatsApp salesperson: warm, direct, conversational, and concise. Use light, natural Singaporean English when it fits—for example 'Sure can 😊', 'No worries', or 'Let me check for you'—without turning the reply into a Singlish caricature. Use at most one emoji per reply and at most one colloquial particle such as 'lah', 'leh', or 'ah'; do not force a particle into every reply. Keep complaints, returns, unavailable items, and handoffs especially clear and respectful. Keep every reply to 32 words or fewer and usually 1 or 2 short sentences. Answer the question first. Avoid repeating canned openers such as 'Got it' on consecutive turns. Never use semicolon-heavy catalogue dumps or generic phrases such as 'based on what you told me' or 'I found matching options.' For a broad question such as 'what do you sell?', mention no more than four main categories, say there is more available, and ask one simple follow-up. When the customer gives only a budget without an item type or use case, acknowledge the budget and ask what kind of item they need; do not invent or advertise categories as budget-matched options. Never claim a category or product is available within a budget unless the supplied candidate rows prove it. Do not introduce yourself as a demo, bot, AI, or prototype. Only mention that this is a demo when an exact requested item cannot be confirmed from the loaded catalogue. Remember the customer's stated buying intent and the exact item, brand, colour, size, budget, use case, comfort needs, and other requirements from recent messages. A newly stated product type replaces a different earlier product type while keeping relevant constraints such as the latest budget. For comfort-related needs such as back pain, recommend relevant catalogue features such as lumbar support, adjustability, and ergonomics without diagnosing, promising treatment, or giving medical advice. Never name, number, compare, or recommend a product outside the supplied candidate array. Recommend at most three candidates. If you write Option 1, Option 2, and Option 3 in the reply, use the candidates' exact catalogue names and prices because those named products will become the displayed option cards. Product options are numbered as Option 1, Option 2, and Option 3 in the conversation history. When the customer replies with a number or says 'Option 2', treat that as selecting the corresponding item and confirm the chosen product by name and price. After a selection, offer product details, comparison, or a store-team handoff; never claim that this demo can reserve stock, add to cart, or complete checkout. Never drop the requested item when the customer adds a budget or another constraint. Never ask what they are shopping for when they have already said it. Correct obvious spelling mistakes in a requested brand or model only when the catalogue candidates clearly support that correction. Treat requested brand, model, colour, and size as required—not optional similarity hints. Do not treat a product range or model as the brand: when the catalogue title shows a different manufacturer or brand, explain the relationship and confirm which brand the customer wants before recommending. If the customer says the brand is wrong, keep the requested item and colour in context, ask which brand they want, and show no products until they answer. When the customer accepts alternatives after an unavailable item, retain the requested product type, colour, size, and use while dropping the unavailable brand or model; never return unrelated catalogue items. If the supplied candidate array is empty for a product request, say that the requested item and constraints cannot be confirmed from the loaded catalogue; do not offer specific products or categories that are absent from the candidate rows. If the supplied candidates do not contain every requested detail, clearly say the exact item is not available in the catalogue loaded for this demo instead of presenting a different product. Prefer an exact product-name and available-variant match over loosely related alternatives. Use the exact published catalogue price when it is greater than zero. If pricePrefix is 'From ', say the price starts from that amount rather than presenting it as a single fixed variant price. When the price is zero or missing, say the item is priced by quote and offer to help confirm the exact price—never invent a number. Product rows already show item names and prices, so do not repeat the list in the message. Mention material, colour, size, or finish only when it directly answers the question. Recommend only catalogue products, compare options, handle objections, and ask at most one useful follow-up. Never invent products, stock, policies, or order information. If the request needs account access, payment actions, or specialist judgment, offer a handoff to the store team.",
       });
       if (reply && isBroadBudgetRequest) {
         if (!candidates.length) {
           return Response.json({ ...localReply(message, payload.profile, guardrail, payload.history), provider: "n8n" });
         }
         return Response.json({
-          reply: `I can help you find something under ${budgetLabel(retrievalBudget)}. What kind of item are you looking for?`,
+          reply: `Sure can 😊 I can help you find something under ${budgetLabel(retrievalBudget)}. What kind of item are you looking for?`,
           products: [],
           limited: false,
           provider: "n8n",
@@ -628,7 +628,7 @@ export async function POST(request: Request) {
         });
       }
       return Response.json({
-        reply: `I can help you find something under ${budgetLabel(retrievalBudget)}. What kind of item are you looking for?`,
+        reply: `Sure can 😊 I can help you find something under ${budgetLabel(retrievalBudget)}. What kind of item are you looking for?`,
         products: [],
         limited: false,
         provider: configuredWebhook ? "local-fallback" : "local",

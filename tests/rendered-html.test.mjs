@@ -275,7 +275,7 @@ test("a rejected brand is not shown again and the product need is remembered", a
   assert.equal(response.status, 200);
   const data = await response.json();
   assert.equal(data.products.length, 0);
-  assert.match(data.reply, /Which brand do you want for the blue pen/i);
+  assert.match(data.reply, /Which brand (?:do you want|would you like) for the blue pen/i);
 });
 
 test("corrects an obvious brand typo using catalogue evidence", async () => {
@@ -731,6 +731,8 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     assert.equal(receivedBody.business.products[0].name, "Hiro Chair");
     assert.equal(receivedBody.business.catalogueMatch.exactCatalogueMatch, true);
     assert.equal(receivedBody.catalogueOverview.totalProducts, 2);
+    assert.match(receivedBody.instructions, /natural Singaporean English/i);
+    assert.match(receivedBody.instructions, /at most one emoji per reply/i);
     assert.match(receivedBody.instructions, /32 words or fewer/);
     assert.match(receivedBody.instructions, /real WhatsApp salesperson/);
     assert.match(receivedBody.instructions, /gives only a budget/i);
@@ -874,6 +876,7 @@ test("uses local n8n as the primary sales brain when configured", async () => {
     assert.equal(timeoutFallbackData.provider, "local-fallback");
     assert.ok(timeoutElapsedMs < 500, `Expected a fast fallback, received it in ${timeoutElapsedMs}ms`);
     assert.doesNotMatch(timeoutFallbackData.reply, /team handoff|connect you with our team/i);
+    assert.match(timeoutFallbackData.reply, /😊/u);
     assert.deepEqual(timeoutFallbackData.products.map((product) => product.name), [
       "Hinomi Q1 Ergonomic Office Chair",
       "Hinomi Q2 Ergonomic Office Chair",
